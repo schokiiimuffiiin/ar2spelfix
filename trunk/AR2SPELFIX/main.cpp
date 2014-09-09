@@ -5,9 +5,9 @@
 #include <map>
 #include <assert.h>
 
-inline bool DoesFileExist( const char *name )
+inline bool DoesFileExist( const wchar_t *name )
 {
-    return ( GetFileAttributes( name ) != INVALID_FILE_ATTRIBUTES );
+    return ( GetFileAttributesW( name ) != INVALID_FILE_ATTRIBUTES );
 }
 
 inline std::wstring GetDirectoryFromFilePath( const std::wstring& filePath )
@@ -36,32 +36,32 @@ inline std::wstring GetDirectoryFromFilePath( const std::wstring& filePath )
     return filePath.substr( dirStart, dirEnd );
 }
 
-std::string GetCurrentDirectoryString( void )
+std::wstring GetCurrentDirectoryString( void )
 {
-    DWORD requiredSize = GetCurrentDirectoryA( 0, NULL );
+    DWORD requiredSize = GetCurrentDirectoryW( 0, NULL );
 
-    std::string outString( requiredSize, (char)0 );
+    std::wstring outString( requiredSize - 1, (char)0 );
 
-    DWORD numWrite = GetCurrentDirectoryA( requiredSize, (char*)outString.c_str() );
+    DWORD numWrite = GetCurrentDirectoryW( requiredSize, (wchar_t*)outString.c_str() );
 
-    assert( requiredSize == numWrite );
+    assert( requiredSize == ( numWrite + 1 ) );
 
     return outString;
 }
 
-bool GetExecutablePath( std::string& resultPath )
+bool GetExecutablePath( std::wstring& resultPath )
 {
     bool hasResultPath = false;
     {
         // Attempt to find the file in the current directory.
-        const char *findFileName = "spel.exe";
+        wchar_t *findFileName = L"spel.exe";
         
         if ( !hasResultPath )
         {
-            std::string curDirAbsPath;
+            std::wstring curDirAbsPath;
 
             curDirAbsPath += GetCurrentDirectoryString();
-            curDirAbsPath += "\\";
+            curDirAbsPath += L"\\";
             curDirAbsPath += findFileName;
 
             if ( DoesFileExist( curDirAbsPath.c_str() ) == true )
@@ -90,16 +90,27 @@ bool GetExecutablePath( std::string& resultPath )
 
                 // This logic is not entirely correct, but meh.
 
+				DWORD regValueType;
+
                 // Get the field which tells us about the main executable.
-                LONG keyValueRequestResult = RegGetValueW(
-                    autobahnRaserKey, NULL,
-                    L"ProgramFile", RRF_RT_REG_SZ,
-                    NULL, programPath, &bufferSize
+                LONG keyValueRequestResult = RegQueryValueExW(
+                    autobahnRaserKey,
+                    L"ProgramFile", NULL, &regValueType,
+                    (BYTE*)programPath, &bufferSize
                 );
 
-                if ( keyValueRequestResult == ERROR_SUCCESS )
+                if ( keyValueRequestResult == ERROR_SUCCESS && regValueType == REG_SZ )
                 {
+					size_t strLen = ( bufferSize / sizeof( wchar_t ) ) - 1;
+
+					std::wstring filePath( programPath, strLen );
+		
                     // Transform the given path to a directory path and append our program name to it.
+					std::wstring dirPath = GetDirectoryFromFilePath( filePath );
+
+					resultPath = dirPath + L'\\' + findFileName;
+
+					hasResultPath = true;
                 }
             }
         }
@@ -107,17 +118,12 @@ bool GetExecutablePath( std::string& resultPath )
 	return hasResultPath;
 }
 
-const char* GetExecutableCurrentDirectory()
-{
-	return "C:/Programme/Davilex/Autobahn Raser II/";
-}
-
-const char* GetLibraryPath()
+const wchar_t* GetLibraryPath( void )
 {
 #ifdef _DEBUG
-	return "\\spelfix\\core_d.dll";
+	return L"\\spelfix\\core_d.dll";
 #else
-	return "\\spelfix\\core.dll";
+	return L"\\spelfix\\core.dll";
 #endif
 }
 
@@ -328,10 +334,10 @@ inline void MemPutOffset( void *ptr, size_t offset, const dataType& data )
 
 int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow )
 {
-	STARTUPINFO stInfo;
+	STARTUPINFOW stInfo;
 	PROCESS_INFORMATION procInfo;
 	HMODULE hKernel32 = GetModuleHandle("Kernel32");
-	const char *libPath = GetLibraryPath();
+	const wchar_t *libPath = GetLibraryPath();
 
 	ZeroMemory(&stInfo, sizeof(stInfo));
 	ZeroMemory(&procInfo, sizeof(procInfo));
@@ -339,7 +345,7 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     wchar_t *envBlockPointers = MakeEnvironment();
 
 	// Create a game process and attach our library to it
-    std::string executablePath;
+    std::wstring executablePath;
 
     bool executableSuccess = GetExecutablePath( executablePath );
 
@@ -349,7 +355,7 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         return EXIT_FAILURE;
     }
 
-	bool success = CreateProcess( executablePath.c_str(), NULL, NULL, NULL, 1, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, (LPVOID)envBlockPointers, NULL, &stInfo, &procInfo ) != FALSE;
+	bool success = CreateProcessW( executablePath.c_str(), NULL, NULL, NULL, 1, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, (LPVOID)envBlockPointers, NULL, &stInfo, &procInfo ) != FALSE;
 
 	if ( !success )
 	{
@@ -365,17 +371,14 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	// Initialize the game using the nastiest stuff ever.
 	{
 		// Create absolute directory to library
-		char pathBuf[1024];
-		GetCurrentDirectory( sizeof(pathBuf), pathBuf );
+		std::wstring libPathStr = GetCurrentDirectoryString() + libPath;
 
-		strcat( pathBuf, libPath );
-
-		size_t pathSize = strlen( pathBuf ) + 1;
+		size_t pathSize = sizeof( wchar_t ) * ( libPathStr.size() + 1 );
 
 		// Get the current directory and prepare it
-		const char *curDir = GetExecutableCurrentDirectory();
+		std::wstring curDir = GetDirectoryFromFilePath( executablePath );
 
-		size_t curDirSize = strlen( curDir ) + 1;
+		size_t curDirSize = sizeof( wchar_t ) * ( curDir.size() + 1 );
 
 		// Prepare a data block and an executive block to be patched into the application.
 		size_t requiredDataBlockSize = pathSize + curDirSize;
@@ -387,8 +390,8 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		char *remoteLibPathPtr = remoteCurDirPtr + curDirSize;
 
 		// Write the stuff.
-		memcpy( remoteCurDirPtr, curDir, curDirSize );
-		memcpy( remoteLibPathPtr, pathBuf, pathSize );
+		memcpy( remoteCurDirPtr, curDir.c_str(), curDirSize );
+		memcpy( remoteLibPathPtr, libPathStr.c_str(), pathSize );
 
 		size_t remoteCurDirOffset = 0;
 		size_t remoteLibPathOffset = remoteCurDirOffset + curDirSize;
@@ -420,7 +423,7 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		// Modify it so it has pointers to remote data.
 		size_t instrOffset = 7;
 
-		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "SetCurrentDirectoryA" ) );
+		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "SetCurrentDirectoryW" ) );
 		instrOffset += 5;
 		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)remoteDataSection + remoteCurDirOffset );
 		instrOffset += 8;
@@ -428,14 +431,14 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "IsDebuggerPresent" ) );
 		instrOffset += 11;
 #endif
-		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "LoadLibraryA" ) );
+		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "LoadLibraryW" ) );
 		instrOffset += 5;
 		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)remoteDataSection + remoteLibPathOffset );
 		instrOffset += 8;
 
 		// Patch the application entry point.
 		CONTEXT remoteContext;
-		remoteContext.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+		remoteContext.ContextFlags = CONTEXT_INTEGER;
 
 		GetThreadContext( procInfo.hThread, &remoteContext );
 
@@ -450,7 +453,7 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		BOOL executeWriteSuccess = WriteProcessMemory( procInfo.hProcess, remoteExecutableSection, codeBlockCopy, codeBlockSize, &actuallyExecutiveWritten );
 
         // Make the executable region read-only.
-        VirtualProtect( remoteExecutableSection, codeBlockSize, PAGE_EXECUTE, &oldProtect );
+        VirtualProtectEx( procInfo.hProcess, remoteExecutableSection, codeBlockSize, PAGE_EXECUTE, &oldProtect );
 
 		// We can free the local copy of our executive block.
 		free( codeBlockCopy );
@@ -485,7 +488,7 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     {
         VirtualFreeEx( procInfo.hProcess, remoteExecutableSection, 0, MEM_RELEASE );
         VirtualFreeEx( procInfo.hProcess, remoteDataSection, 0, MEM_RELEASE );
-    }
+	}
 
 	CloseHandle( procInfo.hProcess );
 	CloseHandle( procInfo.hThread );
