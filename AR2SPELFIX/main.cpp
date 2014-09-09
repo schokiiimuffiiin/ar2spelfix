@@ -90,7 +90,7 @@ bool GetExecutablePath( std::wstring& resultPath )
 
                 // This logic is not entirely correct, but meh.
 
-				DWORD regValueType;
+                DWORD regValueType;
 
                 // Get the field which tells us about the main executable.
                 LONG keyValueRequestResult = RegQueryValueExW(
@@ -101,29 +101,29 @@ bool GetExecutablePath( std::wstring& resultPath )
 
                 if ( keyValueRequestResult == ERROR_SUCCESS && regValueType == REG_SZ )
                 {
-					size_t strLen = ( bufferSize / sizeof( wchar_t ) ) - 1;
+                    size_t strLen = ( bufferSize / sizeof( wchar_t ) ) - 1;
 
-					std::wstring filePath( programPath, strLen );
-		
+                    std::wstring filePath( programPath, strLen );
+        
                     // Transform the given path to a directory path and append our program name to it.
-					std::wstring dirPath = GetDirectoryFromFilePath( filePath );
+                    std::wstring dirPath = GetDirectoryFromFilePath( filePath );
 
-					resultPath = dirPath + L'\\' + findFileName;
+                    resultPath = dirPath + L'\\' + findFileName;
 
-					hasResultPath = true;
+                    hasResultPath = true;
                 }
             }
         }
     }
-	return hasResultPath;
+    return hasResultPath;
 }
 
 const wchar_t* GetLibraryPath( void )
 {
 #ifdef _DEBUG
-	return L"\\spelfix\\core_d.dll";
+    return L"\\spelfix\\core_d.dll";
 #else
-	return L"\\spelfix\\core.dll";
+    return L"\\spelfix\\core.dll";
 #endif
 }
 
@@ -210,17 +210,17 @@ inline std::wstring Convert( const char *str )
 
 wchar_t* MakeEnvironment( void )
 {
-	// Grab newest environment variables
-	wchar_t *envBlockPointers;
-	HANDLE myToken = NULL;
+    // Grab newest environment variables
+    wchar_t *envBlockPointers;
+    HANDLE myToken = NULL;
 
-	OpenProcessToken( GetCurrentProcess(), TOKEN_ALL_ACCESS, &myToken );
+    OpenProcessToken( GetCurrentProcess(), TOKEN_ALL_ACCESS, &myToken );
 
-	CreateEnvironmentBlock( (LPVOID*)&envBlockPointers, myToken, 0 );
+    CreateEnvironmentBlock( (LPVOID*)&envBlockPointers, myToken, 0 );
 
     EnvironmentBlock block( envBlockPointers );
 
-	// Add the current directory to our path.
+    // Add the current directory to our path.
     char myDir[1024];
     GetCurrentDirectory( sizeof(myDir), myDir );
 
@@ -230,8 +230,8 @@ wchar_t* MakeEnvironment( void )
     pathVar += L";" + dirEnv + L";";
     block.variables[L"Path"] = pathVar;
 
-	CloseHandle( myToken );
-	DestroyEnvironmentBlock( envBlockPointers );
+    CloseHandle( myToken );
+    DestroyEnvironmentBlock( envBlockPointers );
 
     return block.MakeTraverse();
 }
@@ -242,109 +242,109 @@ wchar_t tempUnicodeBuffer[ 1024 ];
 
 inline HMODULE GetModuleHandleRemote( HANDLE hRemoteProcess, const char *moduleName )
 {
-	HMODULE resultModule = NULL;
-	{
-		HMODULE processModuleArray[ 256 ];
-		DWORD writtenBytes = 0;
+    HMODULE resultModule = NULL;
+    {
+        HMODULE processModuleArray[ 256 ];
+        DWORD writtenBytes = 0;
 
-		BOOL success = EnumProcessModules( hRemoteProcess, processModuleArray, sizeof( processModuleArray ), &writtenBytes );
-		
-		DWORD lastError = GetLastError();
+        BOOL success = EnumProcessModules( hRemoteProcess, processModuleArray, sizeof( processModuleArray ), &writtenBytes );
+        
+        DWORD lastError = GetLastError();
 
-		if ( success == TRUE )
-		{
-			// Iterate through all modules
-			unsigned int moduleCount = (unsigned int)( writtenBytes / sizeof(HMODULE) );
+        if ( success == TRUE )
+        {
+            // Iterate through all modules
+            unsigned int moduleCount = (unsigned int)( writtenBytes / sizeof(HMODULE) );
 
-			for ( unsigned int n = 0; n < moduleCount; n++ )
-			{
-				HMODULE thisModule = processModuleArray[ n ];
+            for ( unsigned int n = 0; n < moduleCount; n++ )
+            {
+                HMODULE thisModule = processModuleArray[ n ];
 
-				// Get the module name.
-				BOOL getSuccess = GetModuleFileNameExW( hRemoteProcess, thisModule, tempUnicodeBuffer, NUMELMS( tempUnicodeBuffer ) );
+                // Get the module name.
+                BOOL getSuccess = GetModuleFileNameExW( hRemoteProcess, thisModule, tempUnicodeBuffer, NUMELMS( tempUnicodeBuffer ) );
 
-				if ( getSuccess == TRUE )
-				{
-					__asm int 3
-				}
-			}
-		}
-	}
-	return resultModule;
+                if ( getSuccess == TRUE )
+                {
+                    __asm int 3
+                }
+            }
+        }
+    }
+    return resultModule;
 }
 
 static void GetApplicationInitializationShellCode( void*& ptrToCodeOut, size_t& codeSizeOut )
 {
-	__asm
-	{
-		mov edx,[ptrToCodeOut]
-		mov ecx,[codeSizeOut]
+    __asm
+    {
+        mov edx,[ptrToCodeOut]
+        mov ecx,[codeSizeOut]
 
-		mov eax,offset codeBegin
-		mov ebx,offset codeEnd
-		sub ebx,eax
-		mov dword ptr [edx],eax
-		mov dword ptr [ecx],ebx
-		jmp codeEnd
+        mov eax,offset codeBegin
+        mov ebx,offset codeEnd
+        sub ebx,eax
+        mov dword ptr [edx],eax
+        mov dword ptr [ecx],ebx
+        jmp codeEnd
 
 codeBegin:
-		// This shellcode is called as new process entry point.
-		mov eax,0xCAFEBABE		// overwrite this with the old entry point.
-		pushad
+        // This shellcode is called as new process entry point.
+        mov eax,0xCAFEBABE		// overwrite this with the old entry point.
+        pushad
 
-		// TODO: get pointer to kernel32.dll and its GetProcAddress routine automatically!
+        // TODO: get pointer to kernel32.dll and its GetProcAddress routine automatically!
 
-		// Change the current directory
-		mov eax,0xBABECAFE		// pointer to SetCurrentDirectoryA
-		mov ecx,0xBACAFEFE		// pointer to the application path (data only)
-		push ecx
-		call eax
+        // Change the current directory
+        mov eax,0xBABECAFE		// pointer to SetCurrentDirectoryA
+        mov ecx,0xBACAFEFE		// pointer to the application path (data only)
+        push ecx
+        call eax
 
-		// If we are debugging, wait for the debugger.
+        // If we are debugging, wait for the debugger.
 #ifdef _DEBUG
-		mov ebx,0xCAFEBABA
+        mov ebx,0xCAFEBABA
 repeatUntilDebug:
-		call ebx
-		test eax,eax
-		jz repeatUntilDebug
+        call ebx
+        test eax,eax
+        jz repeatUntilDebug
 #endif
 
-		// Load the game library
-		mov eax,0xBABEBABE		// pointer to LoadLibraryA function
-		mov ecx,0xCAFECAFE		// pointer to library path (data only)
-		push ecx
-		call eax
+        // Load the game library
+        mov eax,0xBABEBABE		// pointer to LoadLibraryA function
+        mov ecx,0xCAFECAFE		// pointer to library path (data only)
+        push ecx
+        call eax
 
-		// We are finished, proceed starting the application!
+        // We are finished, proceed starting the application!
 
-		popad
-		call eax
+        popad
+        call eax
 
-		// TODO: unload the game library again.
-		ret
+        // TODO: unload the game library again.
+        ret
 codeEnd:
-	}
+    }
 }
 
 template <typename dataType>
 inline void MemPutOffset( void *ptr, size_t offset, const dataType& data )
 {
-	*(dataType*)((char*)ptr+offset) = data;
+    *(dataType*)((char*)ptr+offset) = data;
 }
 
 int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow )
 {
-	STARTUPINFOW stInfo;
-	PROCESS_INFORMATION procInfo;
-	HMODULE hKernel32 = GetModuleHandle("Kernel32");
-	const wchar_t *libPath = GetLibraryPath();
+    STARTUPINFOW stInfo;
+    PROCESS_INFORMATION procInfo;
+    HMODULE hKernel32 = GetModuleHandle("Kernel32");
+    const wchar_t *libPath = GetLibraryPath();
 
-	ZeroMemory(&stInfo, sizeof(stInfo));
-	ZeroMemory(&procInfo, sizeof(procInfo));
+    ZeroMemory(&stInfo, sizeof(stInfo));
+    ZeroMemory(&procInfo, sizeof(procInfo));
 
     wchar_t *envBlockPointers = MakeEnvironment();
 
-	// Create a game process and attach our library to it
+    // Create a game process and attach our library to it
     std::wstring executablePath;
 
     bool executableSuccess = GetExecutablePath( executablePath );
@@ -355,143 +355,143 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         return EXIT_FAILURE;
     }
 
-	bool success = CreateProcessW( executablePath.c_str(), NULL, NULL, NULL, 1, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, (LPVOID)envBlockPointers, NULL, &stInfo, &procInfo ) != FALSE;
+    bool success = CreateProcessW( executablePath.c_str(), NULL, NULL, NULL, 1, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, (LPVOID)envBlockPointers, NULL, &stInfo, &procInfo ) != FALSE;
 
-	if ( !success )
-	{
-		MessageBox( NULL, "Failed to create the game process!", "Error", MB_OK );
-		return EXIT_FAILURE;
-	}
+    if ( !success )
+    {
+        MessageBox( NULL, "Failed to create the game process!", "Error", MB_OK );
+        return EXIT_FAILURE;
+    }
 
-	bool preparationSuccess = true;
+    bool preparationSuccess = true;
 
     LPVOID remoteDataSection = NULL;
     LPVOID remoteExecutableSection = NULL;
 
-	// Initialize the game using the nastiest stuff ever.
-	{
-		// Create absolute directory to library
-		std::wstring libPathStr = GetCurrentDirectoryString() + libPath;
+    // Initialize the game using the nastiest stuff ever.
+    {
+        // Create absolute directory to library
+        std::wstring libPathStr = GetCurrentDirectoryString() + libPath;
 
-		size_t pathSize = sizeof( wchar_t ) * ( libPathStr.size() + 1 );
+        size_t pathSize = sizeof( wchar_t ) * ( libPathStr.size() + 1 );
 
-		// Get the current directory and prepare it
-		std::wstring curDir = GetDirectoryFromFilePath( executablePath );
+        // Get the current directory and prepare it
+        std::wstring curDir = GetDirectoryFromFilePath( executablePath );
 
-		size_t curDirSize = sizeof( wchar_t ) * ( curDir.size() + 1 );
+        size_t curDirSize = sizeof( wchar_t ) * ( curDir.size() + 1 );
 
-		// Prepare a data block and an executive block to be patched into the application.
-		size_t requiredDataBlockSize = pathSize + curDirSize;
+        // Prepare a data block and an executive block to be patched into the application.
+        size_t requiredDataBlockSize = pathSize + curDirSize;
 
-		void *dataBlock = malloc( requiredDataBlockSize );
+        void *dataBlock = malloc( requiredDataBlockSize );
 
-		// Write the data contents.
-		char *remoteCurDirPtr = (char*)dataBlock;
-		char *remoteLibPathPtr = remoteCurDirPtr + curDirSize;
+        // Write the data contents.
+        char *remoteCurDirPtr = (char*)dataBlock;
+        char *remoteLibPathPtr = remoteCurDirPtr + curDirSize;
 
-		// Write the stuff.
-		memcpy( remoteCurDirPtr, curDir.c_str(), curDirSize );
-		memcpy( remoteLibPathPtr, libPathStr.c_str(), pathSize );
+        // Write the stuff.
+        memcpy( remoteCurDirPtr, curDir.c_str(), curDirSize );
+        memcpy( remoteLibPathPtr, libPathStr.c_str(), pathSize );
 
-		size_t remoteCurDirOffset = 0;
-		size_t remoteLibPathOffset = remoteCurDirOffset + curDirSize;
+        size_t remoteCurDirOffset = 0;
+        size_t remoteLibPathOffset = remoteCurDirOffset + curDirSize;
 
-		// Push the data block to the application.
-		remoteDataSection = VirtualAllocEx( procInfo.hProcess, NULL, requiredDataBlockSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE );
+        // Push the data block to the application.
+        remoteDataSection = VirtualAllocEx( procInfo.hProcess, NULL, requiredDataBlockSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE );
 
-		SIZE_T actuallyDataWritten = 0;
+        SIZE_T actuallyDataWritten = 0;
 
-		BOOL writeDataSuccess = WriteProcessMemory( procInfo.hProcess, remoteDataSection, dataBlock, requiredDataBlockSize, &actuallyDataWritten );
+        BOOL writeDataSuccess = WriteProcessMemory( procInfo.hProcess, remoteDataSection, dataBlock, requiredDataBlockSize, &actuallyDataWritten );
 
-		DWORD oldProtect;
-		VirtualProtectEx( procInfo.hProcess, remoteDataSection, requiredDataBlockSize, PAGE_READONLY, &oldProtect );
+        DWORD oldProtect;
+        VirtualProtectEx( procInfo.hProcess, remoteDataSection, requiredDataBlockSize, PAGE_READONLY, &oldProtect );
 
-		// We can free our local copy of the data block.
-		free( dataBlock );
+        // We can free our local copy of the data block.
+        free( dataBlock );
 
-		// Now create the executable remote data.
-		void *codeBlock = NULL;
-		size_t codeBlockSize = 0;
+        // Now create the executable remote data.
+        void *codeBlock = NULL;
+        size_t codeBlockSize = 0;
 
-		GetApplicationInitializationShellCode( codeBlock, codeBlockSize );
+        GetApplicationInitializationShellCode( codeBlock, codeBlockSize );
 
-		// We need to grab a local copy of the executive data, so we can modify it.
-		void *codeBlockCopy = malloc( codeBlockSize );
+        // We need to grab a local copy of the executive data, so we can modify it.
+        void *codeBlockCopy = malloc( codeBlockSize );
 
-		memcpy( codeBlockCopy, codeBlock, codeBlockSize );
+        memcpy( codeBlockCopy, codeBlock, codeBlockSize );
 
-		// Modify it so it has pointers to remote data.
-		size_t instrOffset = 7;
+        // Modify it so it has pointers to remote data.
+        size_t instrOffset = 7;
 
-		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "SetCurrentDirectoryW" ) );
-		instrOffset += 5;
-		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)remoteDataSection + remoteCurDirOffset );
-		instrOffset += 8;
+        MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "SetCurrentDirectoryW" ) );
+        instrOffset += 5;
+        MemPutOffset( codeBlockCopy, instrOffset, (DWORD)remoteDataSection + remoteCurDirOffset );
+        instrOffset += 8;
 #ifdef _DEBUG
-		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "IsDebuggerPresent" ) );
-		instrOffset += 11;
+        MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "IsDebuggerPresent" ) );
+        instrOffset += 11;
 #endif
-		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "LoadLibraryW" ) );
-		instrOffset += 5;
-		MemPutOffset( codeBlockCopy, instrOffset, (DWORD)remoteDataSection + remoteLibPathOffset );
-		instrOffset += 8;
+        MemPutOffset( codeBlockCopy, instrOffset, (DWORD)GetProcAddress( hKernel32, "LoadLibraryW" ) );
+        instrOffset += 5;
+        MemPutOffset( codeBlockCopy, instrOffset, (DWORD)remoteDataSection + remoteLibPathOffset );
+        instrOffset += 8;
 
-		// Patch the application entry point.
-		CONTEXT remoteContext;
-		remoteContext.ContextFlags = CONTEXT_INTEGER;
+        // Patch the application entry point.
+        CONTEXT remoteContext;
+        remoteContext.ContextFlags = CONTEXT_INTEGER;
 
-		GetThreadContext( procInfo.hThread, &remoteContext );
+        GetThreadContext( procInfo.hThread, &remoteContext );
 
-		// Write the old entry point into our remote shell-code.
-		MemPutOffset( codeBlockCopy, 1, remoteContext.Eax );
+        // Write the old entry point into our remote shell-code.
+        MemPutOffset( codeBlockCopy, 1, remoteContext.Eax );
 
-		// Commit the executable region to the application.
-		remoteExecutableSection = VirtualAllocEx( procInfo.hProcess, NULL, codeBlockSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE );
+        // Commit the executable region to the application.
+        remoteExecutableSection = VirtualAllocEx( procInfo.hProcess, NULL, codeBlockSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE );
 
-		SIZE_T actuallyExecutiveWritten = 0;
+        SIZE_T actuallyExecutiveWritten = 0;
 
-		BOOL executeWriteSuccess = WriteProcessMemory( procInfo.hProcess, remoteExecutableSection, codeBlockCopy, codeBlockSize, &actuallyExecutiveWritten );
+        BOOL executeWriteSuccess = WriteProcessMemory( procInfo.hProcess, remoteExecutableSection, codeBlockCopy, codeBlockSize, &actuallyExecutiveWritten );
 
         // Make the executable region read-only.
         VirtualProtectEx( procInfo.hProcess, remoteExecutableSection, codeBlockSize, PAGE_EXECUTE, &oldProtect );
 
-		// We can free the local copy of our executive block.
-		free( codeBlockCopy );
+        // We can free the local copy of our executive block.
+        free( codeBlockCopy );
 
-		// The EAX register at process creation time is the process entry point.
-		// Changing it actually changes the offial entry point.
-		remoteContext.Eax = (DWORD)remoteExecutableSection;
+        // The EAX register at process creation time is the process entry point.
+        // Changing it actually changes the offial entry point.
+        remoteContext.Eax = (DWORD)remoteExecutableSection;
 
-		// Change the process entry point.
-		BOOL contextSetSuccess = SetThreadContext( procInfo.hThread, &remoteContext );
+        // Change the process entry point.
+        BOOL contextSetSuccess = SetThreadContext( procInfo.hThread, &remoteContext );
 
-		// We suceeded.
-		preparationSuccess = true;
-	}
+        // We suceeded.
+        preparationSuccess = true;
+    }
 
-	if ( preparationSuccess )
-	{
-		// Resume execution
-  		ResumeThread( procInfo.hThread );
+    if ( preparationSuccess )
+    {
+        // Resume execution
+        ResumeThread( procInfo.hThread );
 
-		// We need to wait until the process has terminated, since we simulate the original spel.dat!
-		WaitForSingleObject( procInfo.hThread, INFINITE );
-	}
-	else
-	{
-		// Terminate everything.
-		TerminateProcess( procInfo.hProcess, 0x80000001 );
-	}
+        // We need to wait until the process has terminated, since we simulate the original spel.dat!
+        WaitForSingleObject( procInfo.hThread, INFINITE );
+    }
+    else
+    {
+        // Terminate everything.
+        TerminateProcess( procInfo.hProcess, 0x80000001 );
+    }
 
-	// Clean up stuff.
+    // Clean up stuff.
     if ( remoteExecutableSection != NULL )
     {
         VirtualFreeEx( procInfo.hProcess, remoteExecutableSection, 0, MEM_RELEASE );
         VirtualFreeEx( procInfo.hProcess, remoteDataSection, 0, MEM_RELEASE );
-	}
+    }
 
-	CloseHandle( procInfo.hProcess );
-	CloseHandle( procInfo.hThread );
+    CloseHandle( procInfo.hProcess );
+    CloseHandle( procInfo.hThread );
 
-	return EXIT_SUCCESS;
+    return EXIT_SUCCESS;
 }
