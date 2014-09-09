@@ -1,22 +1,115 @@
-// KillFrenzy!
+// Autobahn Raser 2 Spelfix!
 #include "main.h"
 #include <wchar.h>
 #include <string>
 #include <map>
+#include <assert.h>
 
-const void* GetLibraryBase( void )
+inline bool DoesFileExist( const char *name )
 {
-	return (void*)0x00400000;
+    return ( GetFileAttributes( name ) != INVALID_FILE_ATTRIBUTES );
+}
+
+inline std::wstring GetDirectoryFromFilePath( const std::wstring& filePath )
+{
+    size_t dirStart = 0;
+    size_t dirEnd = 0;
+    {
+        size_t lastSeparator = 0;
+       
+        size_t n = 0;
+
+        for ( std::wstring::const_iterator iter = filePath.begin(); iter != filePath.end(); ++iter )
+        {
+            wchar_t theChar = *iter;
+
+            if ( theChar == L'/' || theChar == L'\\' )
+            {
+                lastSeparator = n;
+            }
+
+            n++;
+        }
+
+        dirEnd = lastSeparator;
+    }
+    return filePath.substr( dirStart, dirEnd );
+}
+
+std::string GetCurrentDirectoryString( void )
+{
+    DWORD requiredSize = GetCurrentDirectoryA( 0, NULL );
+
+    std::string outString( requiredSize, (char)0 );
+
+    DWORD numWrite = GetCurrentDirectoryA( requiredSize, (char*)outString.c_str() );
+
+    assert( requiredSize == numWrite );
+
+    return outString;
+}
+
+bool GetExecutablePath( std::string& resultPath )
+{
+    bool hasResultPath = false;
+    {
+        // Attempt to find the file in the current directory.
+        const char *findFileName = "spel.exe";
+        
+        if ( !hasResultPath )
+        {
+            std::string curDirAbsPath;
+
+            curDirAbsPath += GetCurrentDirectoryString();
+            curDirAbsPath += "\\";
+            curDirAbsPath += findFileName;
+
+            if ( DoesFileExist( curDirAbsPath.c_str() ) == true )
+            {
+                resultPath = curDirAbsPath;
+
+                hasResultPath = true;
+            }
+        }
+
+        // Fetch the executable path from the registry.
+        if ( !hasResultPath )
+        {
+            HKEY autobahnRaserKey;
+
+            LONG keyOpenResult = RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                L"SOFTWARE\\Davilex\\Autobahn Raser II\\1\\DE",
+                0, KEY_READ, &autobahnRaserKey
+            );
+
+            if ( keyOpenResult == ERROR_SUCCESS )
+            {
+                wchar_t programPath[ 1024 ];
+                DWORD bufferSize = sizeof( programPath );
+
+                // This logic is not entirely correct, but meh.
+
+                // Get the field which tells us about the main executable.
+                LONG keyValueRequestResult = RegGetValueW(
+                    autobahnRaserKey, NULL,
+                    L"ProgramFile", RRF_RT_REG_SZ,
+                    NULL, programPath, &bufferSize
+                );
+
+                if ( keyValueRequestResult == ERROR_SUCCESS )
+                {
+                    // Transform the given path to a directory path and append our program name to it.
+                }
+            }
+        }
+    }
+	return hasResultPath;
 }
 
 const char* GetExecutableCurrentDirectory()
 {
 	return "C:/Programme/Davilex/Autobahn Raser II/";
-}
-
-const char* GetExecutablePath()
-{
-	return "C:/Programme/Davilex/Autobahn Raser II/spel.exe";
 }
 
 const char* GetLibraryPath()
@@ -137,78 +230,6 @@ wchar_t* MakeEnvironment( void )
     return block.MakeTraverse();
 }
 
-inline bool ExecuteRemoteWithData( HANDLE hRemoteProcess, LPVOID pRoutineUnifiedAddress, const void *pData, size_t dataSize, DWORD& exitCode, std::string& outError )
-{
-	bool success = false;
-
-	if ( pRoutineUnifiedAddress == NULL )
-	{
-		outError = "routine resolution failure";
-	}
-	else
-	{
-		// Request space to write remote data to.
-		LPVOID pDataRemote = VirtualAllocEx( hRemoteProcess, NULL, dataSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE );
-
-		if ( !pDataRemote )
-		{
-			outError = "Failed to allocate memory for remote data";
-		}
-		else
-		{
-			// Now write the remote data.
-			bool writeSuccess = false;
-			{
-				SIZE_T numBytesWritten = 0;
-
-				BOOL bWriteSuccess = WriteProcessMemory( hRemoteProcess, pDataRemote, pData, dataSize, &numBytesWritten );
-
-				writeSuccess = ( bWriteSuccess == TRUE && numBytesWritten == dataSize );
-
-				if ( writeSuccess == false )
-				{
-					outError = "'WriteProcessMemory()' failed";
-				}
-			}
-
-			if ( writeSuccess )
-			{
-				// Make the executable run our code.
-				bool execSuccess = false;
-				{
-					HANDLE hRemoteThread = CreateRemoteThread( hRemoteProcess, NULL, 0, (LPTHREAD_START_ROUTINE)pRoutineUnifiedAddress, pDataRemote, 0, NULL );
-
-					if ( hRemoteThread == NULL )
-					{
-						outError = "Could not inject remote thread!";
-					}
-					else
-					{
-						WaitForSingleObject( hRemoteThread, INFINITE );
-						GetExitCodeThread( hRemoteThread, &exitCode );
-
-						// Clean up thread resources.
-						CloseHandle( hRemoteThread );
-
-						// We succeeded in executing the remote code.
-						execSuccess = true;
-					}
-
-					if ( execSuccess )
-					{
-						success = true;
-					}
-				}
-			}
-
-			// We dont need the memory allocated at the process anymore
-			VirtualFreeEx( hRemoteProcess, pDataRemote, dataSize, MEM_RELEASE );
-		}
-	}
-
-	return success;
-}
-
 wchar_t tempUnicodeBuffer[ 1024 ];
 
 #define NUMELMS(a)	( sizeof(a) / sizeof(*a) )
@@ -318,17 +339,28 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     wchar_t *envBlockPointers = MakeEnvironment();
 
 	// Create a game process and attach our library to it
-	const char *executablePath = GetExecutablePath();
+    std::string executablePath;
 
-	bool success = CreateProcess( executablePath, NULL, NULL, NULL, 1, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, (LPVOID)envBlockPointers, NULL, &stInfo, &procInfo ) != FALSE;
+    bool executableSuccess = GetExecutablePath( executablePath );
 
-	if (!success)
+    if ( !executableSuccess )
+    {
+        MessageBox( NULL, "Could not find the game executable. Have you properly installed the program?", "Error", MB_OK );
+        return EXIT_FAILURE;
+    }
+
+	bool success = CreateProcess( executablePath.c_str(), NULL, NULL, NULL, 1, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT, (LPVOID)envBlockPointers, NULL, &stInfo, &procInfo ) != FALSE;
+
+	if ( !success )
 	{
-		MessageBox(NULL, "Failed to create the game process!", "Error", MB_OK);
+		MessageBox( NULL, "Failed to create the game process!", "Error", MB_OK );
 		return EXIT_FAILURE;
 	}
 
 	bool preparationSuccess = true;
+
+    LPVOID remoteDataSection = NULL;
+    LPVOID remoteExecutableSection = NULL;
 
 	// Initialize the game using the nastiest stuff ever.
 	{
@@ -362,7 +394,7 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		size_t remoteLibPathOffset = remoteCurDirOffset + curDirSize;
 
 		// Push the data block to the application.
-		LPVOID remoteDataSection = VirtualAllocEx( procInfo.hProcess, NULL, requiredDataBlockSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE );
+		remoteDataSection = VirtualAllocEx( procInfo.hProcess, NULL, requiredDataBlockSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE );
 
 		SIZE_T actuallyDataWritten = 0;
 
@@ -411,11 +443,14 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		MemPutOffset( codeBlockCopy, 1, remoteContext.Eax );
 
 		// Commit the executable region to the application.
-		LPVOID remoteExecutableSection = VirtualAllocEx( procInfo.hProcess, NULL, codeBlockSize, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE );
+		remoteExecutableSection = VirtualAllocEx( procInfo.hProcess, NULL, codeBlockSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE );
 
 		SIZE_T actuallyExecutiveWritten = 0;
 
 		BOOL executeWriteSuccess = WriteProcessMemory( procInfo.hProcess, remoteExecutableSection, codeBlockCopy, codeBlockSize, &actuallyExecutiveWritten );
+
+        // Make the executable region read-only.
+        VirtualProtect( remoteExecutableSection, codeBlockSize, PAGE_EXECUTE, &oldProtect );
 
 		// We can free the local copy of our executive block.
 		free( codeBlockCopy );
@@ -446,6 +481,12 @@ int	WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	}
 
 	// Clean up stuff.
+    if ( remoteExecutableSection != NULL )
+    {
+        VirtualFreeEx( procInfo.hProcess, remoteExecutableSection, 0, MEM_RELEASE );
+        VirtualFreeEx( procInfo.hProcess, remoteDataSection, 0, MEM_RELEASE );
+    }
+
 	CloseHandle( procInfo.hProcess );
 	CloseHandle( procInfo.hThread );
 
