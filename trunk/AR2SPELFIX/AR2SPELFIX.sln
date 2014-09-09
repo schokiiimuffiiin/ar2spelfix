@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual C++ Express 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AR2SPELFIX LOADER", "AR2SPELFIX.vcproj", "{8F664FAE-C965-4A1F-A264-EE68C75BB6DF}"
+	ProjectSection(ProjectDependencies) = postProject
+		{995C137E-7E5E-42CF-9785-D1499B1D0B2B} = {995C137E-7E5E-42CF-9785-D1499B1D0B2B}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "AR2SPELFIX CORE", "..\AR2SPELFIX CORE\AR2SPELFIX CORE.vcproj", "{995C137E-7E5E-42CF-9785-D1499B1D0B2B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8F664FAE-C965-4A1F-A264-EE68C75BB6DF}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8F664FAE-C965-4A1F-A264-EE68C75BB6DF}.Debug|Win32.Build.0 = Debug|Win32
+		{8F664FAE-C965-4A1F-A264-EE68C75BB6DF}.Release|Win32.ActiveCfg = Release|Win32
+		{8F664FAE-C965-4A1F-A264-EE68C75BB6DF}.Release|Win32.Build.0 = Release|Win32
+		{995C137E-7E5E-42CF-9785-D1499B1D0B2B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{995C137E-7E5E-42CF-9785-D1499B1D0B2B}.Debug|Win32.Build.0 = Debug|Win32
+		{995C137E-7E5E-42CF-9785-D1499B1D0B2B}.Release|Win32.ActiveCfg = Release|Win32
+		{995C137E-7E5E-42CF-9785-D1499B1D0B2B}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
