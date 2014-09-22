@@ -5,7 +5,7 @@ GERMAN
 WIE MAN AR2SPELFIX INSTALLIERT:
 
 1) ÷ffne deinen "Autobahn Raser II" Ordner in den Programmdateien
-2) Benenne die "spel.dat" Datei in "spel.exe" um
+2) Benenne die "spel.dat" Datei (sie befindet sich im Ordner des Spiels) in "spel.exe" um
 3) Kopiere die AR2SPELFIX Dateien in den "Autobahn Raser II" Ordner
 
 Viel Spaﬂ mit Autobahn Raser II!
@@ -20,7 +20,7 @@ ENGLISH
 
 HOW TO INSTALL AR2SPELFIX:
 1) Open the "Autobahn Raser II" folder in the program files
-2) Rename "spel.dat" into "spel.exe"
+2) Rename the "spel.dat" file (the one that is located in the game folder) into "spel.exe"
 3) Copy the AR2SPELFIX Files into your "Autobahn Raser II" folder
 
 Have fun with Autobahn Raser II!
