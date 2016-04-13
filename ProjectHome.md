@@ -1,0 +1,1 @@
+Diese Anwendung behebt Programmierfehler im Davilex Titel "Autobahn Raser 2". Dafür wird die 1.0 deutsche Version benötigt. Laufen tut die Anwendung auf Windows XP 32bit.
